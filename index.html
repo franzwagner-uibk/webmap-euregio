@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Frame3S Web Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    .map-header {
+      position: absolute; z-index: 1000; left: 10px; top: 10px;
+      background: white; padding: 8px 10px; border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.15); font-family: system-ui, sans-serif;
+    }
+    .leaflet-control-layers { font-family: system-ui, sans-serif; }
+    .footer {
+      position: absolute; z-index: 1000; right: 10px; bottom: 10px;
+      background: rgba(255,255,255,.95); padding: 6px 10px; border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15); font-family: system-ui, sans-serif;
+      font-size: 12px;
+    }
+    .legend {
+      position: absolute; left: 10px; bottom: 10px; z-index: 1000;
+      background: rgba(255,255,255,.95); padding: 8px 10px; border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15); font-family: system-ui, sans-serif;
+      font-size: 12px; line-height: 1.2;
+    }
+    .legend-row {
+      display: flex; align-items: center; margin: 4px 0;
+    }
+    .legend-swatch {
+      width: 36px; height: 10px; margin-right: 8px;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="map-header">
+    <strong>Frame3S Web Map</strong><br>
+    <small>Toggle layers via the control (top-right)</small>
+  </div>
+  <div class="legend">
+    <div style="font-weight:600; margin-bottom:4px;">Legend</div>
+    <div class="legend-row">
+      <svg class="legend-swatch" viewBox="0 0 36 10" xmlns="http://www.w3.org/2000/svg">
+        <line x1="0" y1="5" x2="36" y2="5" stroke="#1f78b4" stroke-width="2" />
+      </svg>
+      <span>LWD Subregions Euregio</span>
+    </div>
+    <div class="legend-row">
+      <svg class="legend-swatch" viewBox="0 0 36 10" xmlns="http://www.w3.org/2000/svg">
+        <line x1="0" y1="5" x2="36" y2="5" stroke="#000000" stroke-width="2" />
+      </svg>
+      <span>GMBA Inventory L8</span>
+    </div>
+  </div>
+  <div class="footer">
+    © 2025 Franz Wagner – University of Innsbruck – <a href="mailto:franz.wagner@uibk.ac.at">franz.wagner@uibk.ac.at</a>
+  </div>
+
+  <script>
+    // --- Map init ---
+    // Requested center: 46.7842128 N, 11.6037210 E
+    // Default scale ~ 1:2,000,000 ~ Leaflet zoom ≈ 8 (varies by screen DPI)
+    const map = L.map('map', { zoomControl: true }).setView([46.7842128, 11.6037210], 8);
+
+    // Add a scale bar for reference
+    L.control.scale({ metric: true, imperial: false }).addTo(map);
+
+    // Basemap (OpenStreetMap) + optional imagery
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri'
+    });
+
+    const baseMaps = {
+      "OpenStreetMap": osm,
+      "Esri World Imagery": esriSat
+    };
+
+    // Styles: LWD blue, GMBA black, line width ~ 2 px (web maps use pixels; 2 px ≈ 2 pt visually)
+    const layerStyles = {
+      lwd_subregions_euregio: { color: '#1f78b4', weight: 2, fillOpacity: 0.15 },
+      GMBA_Inventory_L8:      { color: '#000000', weight: 2, fillOpacity: 0.15 }
+    };
+
+    const overlays = {};
+    const overlayMaps = {};
+    const boundsArray = [];
+
+    function addGeoJSON(url, key, displayName) {
+      fetch(url)
+        .then(r => r.json())
+        .then(geo => {
+          const gj = L.geoJSON(geo, {
+            style: feature => layerStyles[key] || {},
+            pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+              radius: 5,
+              weight: 2,
+              color: (layerStyles[key] && layerStyles[key].color) || '#333',
+              fillOpacity: (layerStyles[key] && layerStyles[key].fillOpacity) || 0.5
+            }),
+            onEachFeature: (feature, layer) => {
+              const props = feature && feature.properties ? feature.properties : {};
+              const rows = Object.entries(props).map(([k,v]) => `<tr><th style="text-align:left;padding-right:8px;white-space:nowrap">${k}</th><td>${v}</td></tr>`).join("");
+              if (rows) layer.bindPopup(`<table>${rows}</table>`);
+            }
+          });
+          overlays[key] = gj;
+          overlayMaps[displayName] = gj;
+          gj.addTo(map);
+
+          if (gj.getBounds && gj.getBounds().isValid()) boundsArray.push(gj.getBounds());
+
+          // Refresh the layer control
+          if (window._layersControl) window._layersControl.remove();
+          window._layersControl = L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+
+          // Fit to data on first load
+          if (boundsArray.length > 0) {
+            const merged = boundsArray.reduce((acc, b) => acc ? acc.extend(b) : b, null);
+            if (merged && merged.isValid()) map.fitBounds(merged, { padding: [20,20] });
+          }
+        })
+        .catch(err => console.error('Failed to load', url, err));
+    }
+
+    // Load layers
+    addGeoJSON('data/lwd_subregions_euregio.geojson', 'lwd_subregions_euregio', 'LWD Subregions Euregio');
+    addGeoJSON('data/GMBA_Inventory_L8.geojson', 'GMBA_Inventory_L8', 'GMBA Inventory L8');
+  </script>
+</body>
+</html>
