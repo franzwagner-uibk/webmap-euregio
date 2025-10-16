@@ -185,6 +185,13 @@
   addGeoJSON('data/GMBA_Inventory_L8.geojson',      'GMBA_Inventory_L8',      'GMBA Inventory L8');
   addGeoJSON('data/euregio.geojson', 'euregio', 'Euregio Boundary');
 
+  map.on('overlayadd', function(e) {
+  if (e.name === 'Euregio Boundary' && overlays.euregio) {
+    overlays.euregio.bringToFront();
+  }
+});
+
+
 </script>
 
 </body>
