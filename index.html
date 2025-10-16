@@ -66,6 +66,55 @@
       }
     </style>
   </head>
+  <!-- === Layer Area Statistics === -->
+  <div
+    id="area-stats"
+    style="
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 10px 14px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      line-height: 1.3;
+      max-width: 320px;
+    "
+  >
+    <div style="font-weight: 600; margin-bottom: 6px">
+      Layer Area Statistics
+    </div>
+    <table style="border-collapse: collapse; width: 100%">
+      <thead>
+        <tr style="text-align: left; border-bottom: 1px solid #ccc">
+          <th>Layer</th>
+          <th style="text-align: right">Count</th>
+          <th style="text-align: right">Min&nbsp;(km²)</th>
+          <th style="text-align: right">Max&nbsp;(km²)</th>
+          <th style="text-align: right">Mean&nbsp;(km²)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>LWD Subregions Euregio</td>
+          <td style="text-align: right">108</td>
+          <td style="text-align: right">47.0</td>
+          <td style="text-align: right">1 501.6</td>
+          <td style="text-align: right">336.8</td>
+        </tr>
+        <tr>
+          <td>GMBA Inventory L8</td>
+          <td style="text-align: right">35</td>
+          <td style="text-align: right">303.1</td>
+          <td style="text-align: right">4 356.9</td>
+          <td style="text-align: right">1 342.9</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
   <body>
     <div id="map"></div>
     <div class="map-header">
