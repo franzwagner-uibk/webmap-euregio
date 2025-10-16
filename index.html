@@ -66,13 +66,13 @@
       }
     </style>
   </head>
-  <!-- === Layer Area Statistics === -->
+  <!-- === Layer Area Statistics (bottom-right above footer) === -->
   <div
     id="area-stats"
     style="
       position: absolute;
       right: 10px;
-      top: 10px;
+      bottom: 80px; /* slightly above footer */
       z-index: 1000;
       background: rgba(255, 255, 255, 0.95);
       padding: 10px 14px;
@@ -115,6 +115,7 @@
       </tbody>
     </table>
   </div>
+
   <body>
     <div id="map"></div>
     <div class="map-header">
