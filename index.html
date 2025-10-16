@@ -60,79 +60,117 @@
     © 2025 Franz Wagner – University of Innsbruck – <a href="mailto:franz.wagner@uibk.ac.at">franz.wagner@uibk.ac.at</a>
   </div>
 
-  <script>
-    // --- Map init ---
-    // Requested center: 46.7842128 N, 11.6037210 E
-    // Default scale ~ 1:2,000,000 ~ Leaflet zoom ≈ 8 (varies by screen DPI)
-    const map = L.map('map', { zoomControl: true }).setView([46.7842128, 11.6037210], 8);
+<script>
+  // === Map init (fixed center/zoom) ===
+  const INITIAL_CENTER = [46.7842128, 11.6037210];
+  const INITIAL_ZOOM   = 8; // ≈ 1:2,000,000 depending on display DPI
 
-    // Add a scale bar for reference
-    L.control.scale({ metric: true, imperial: false }).addTo(map);
+  const map = L.map('map', { zoomControl: true }).setView(INITIAL_CENTER, INITIAL_ZOOM);
+  L.control.scale({ metric: true, imperial: false }).addTo(map);
 
-    // Basemap (OpenStreetMap) + optional imagery
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
 
-    const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri'
-    });
+  const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles © Esri'
+  });
 
-    const baseMaps = {
-      "OpenStreetMap": osm,
-      "Esri World Imagery": esriSat
-    };
+  const baseMaps = { "OpenStreetMap": osm, "Esri World Imagery": esriSat };
 
-    // Styles: LWD blue, GMBA black, line width ~ 2 px (web maps use pixels; 2 px ≈ 2 pt visually)
-    const layerStyles = {
-      lwd_subregions_euregio: { color: '#1f78b4', weight: 2, fillOpacity: 0.15 },
-      GMBA_Inventory_L8:      { color: '#000000', weight: 2, fillOpacity: 0.15 }
-    };
+  // Styles
+  const layerStyles = {
+    lwd_subregions_euregio: { color: '#1f78b4', weight: 2, fillOpacity: 0.15 },
+    GMBA_Inventory_L8:      { color: '#000000', weight: 2, fillOpacity: 0.15 }
+  };
 
-    const overlays = {};
-    const overlayMaps = {};
-    const boundsArray = [];
+  const overlays = {};
+  const overlayMaps = {};
+  let loadedBounds = [];   // store valid bounds from non-empty layers
+  let layersLoaded = 0;    // diagnostic
 
-    function addGeoJSON(url, key, displayName) {
-      fetch(url)
-        .then(r => r.json())
-        .then(geo => {
-          const gj = L.geoJSON(geo, {
-            style: feature => layerStyles[key] || {},
-            pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+  // Helper: basic bounds sanity (coordinates within longitude/latitude ranges)
+  function boundsLooksValid(b) {
+    try {
+      const sw = b.getSouthWest(), ne = b.getNorthEast();
+      const ok =
+        sw.lng >= -180 && sw.lng <= 180 &&
+        ne.lng >= -180 && ne.lng <= 180 &&
+        sw.lat >= -90  && sw.lat <= 90  &&
+        ne.lat >= -90  && ne.lat <= 90  &&
+        (ne.lng - sw.lng) > 0 && (ne.lat - sw.lat) > 0;
+      return ok;
+    } catch { return false; }
+  }
+
+  // Safer loader with diagnostics and cache-busting
+  function addGeoJSON(url, key, displayName) {
+    const busted = url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
+
+    fetch(busted)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
+        return r.json();
+      })
+      .then(geo => {
+        const features = Array.isArray(geo.features) ? geo.features.length : 0;
+        console.log(`[${displayName}] Loaded ${features} features from ${url}`);
+
+        const gj = L.geoJSON(geo, {
+          style: () => layerStyles[key] || {},
+          pointToLayer: (feature, latlng) =>
+            L.circleMarker(latlng, {
               radius: 5,
               weight: 2,
               color: (layerStyles[key] && layerStyles[key].color) || '#333',
               fillOpacity: (layerStyles[key] && layerStyles[key].fillOpacity) || 0.5
             }),
-            onEachFeature: (feature, layer) => {
-              const props = feature && feature.properties ? feature.properties : {};
-              const rows = Object.entries(props).map(([k,v]) => `<tr><th style="text-align:left;padding-right:8px;white-space:nowrap">${k}</th><td>${v}</td></tr>`).join("");
-              if (rows) layer.bindPopup(`<table>${rows}</table>`);
-            }
-          });
-          overlays[key] = gj;
-          overlayMaps[displayName] = gj;
-          gj.addTo(map);
-
-          if (gj.getBounds && gj.getBounds().isValid()) boundsArray.push(gj.getBounds());
-
-          // Refresh the layer control
-          if (window._layersControl) window._layersControl.remove();
-          window._layersControl = L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
-
-          // Fit to data on first load
-          if (boundsArray.length > 0) {
-            const merged = boundsArray.reduce((acc, b) => acc ? acc.extend(b) : b, null);
-            if (merged && merged.isValid()) map.fitBounds(merged, { padding: [20,20] });
+          onEachFeature: (feature, layer) => {
+            const props = feature?.properties || {};
+            const rows = Object.entries(props)
+              .map(([k, v]) => `<tr><th style="text-align:left;padding-right:8px;white-space:nowrap">${k}</th><td>${v}</td></tr>`)
+              .join("");
+            if (rows) layer.bindPopup(`<table>${rows}</table>`);
           }
-        })
-        .catch(err => console.error('Failed to load', url, err));
-    }
+        }).addTo(map);
 
-    // Load layers
-    addGeoJSON('data/lwd_subregions_euregio.geojson', 'lwd_subregions_euregio', 'LWD Subregions Euregio');
-    addGeoJSON('data/GMBA_Inventory_L8.geojson', 'GMBA_Inventory_L8', 'GMBA Inventory L8');
-  </script>
+        overlays[key] = gj;
+        overlayMaps[displayName] = gj;
+
+        // Refresh layer control
+        if (window._layersControl) window._layersControl.remove();
+        window._layersControl = L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+
+        // Only collect bounds if there are features and the bounds look sane
+        const hasBounds = typeof gj.getBounds === 'function' ? gj.getBounds() : null;
+        if (features > 0 && hasBounds && hasBounds.isValid() && boundsLooksValid(hasBounds)) {
+          loadedBounds.push(hasBounds);
+          console.log(`[${displayName}] Bounds:`, hasBounds.toBBoxString());
+        } else {
+          console.warn(`[${displayName}] No valid bounds (empty layer, invalid CRS, or bad coords).`);
+        }
+
+        layersLoaded += 1;
+
+        // Optional: if BOTH layers load with valid bounds, you could auto-fit once.
+        // If you prefer to ALWAYS keep the initial center/zoom, comment this block out.
+        if (loadedBounds.length > 0 && layersLoaded >= 2) {
+          const merged = loadedBounds.reduce((acc, b) => acc ? acc.extend(b) : b, null);
+          if (merged && merged.isValid() && boundsLooksValid(merged)) {
+            // map.fitBounds(merged, { padding: [20, 20] }); // <- enable only if you want auto-fit
+          }
+        }
+      })
+      .catch(err => {
+        console.error(`Failed to load ${url}`, err);
+        alert(`Failed to load: ${url}\n${err.message}`);
+      });
+  }
+
+  // Load your layers (paths are case-sensitive!)
+  addGeoJSON('data/lwd_subregions_euregio.geojson', 'lwd_subregions_euregio', 'LWD Subregions Euregio');
+  addGeoJSON('data/GMBA_Inventory_L8.geojson',      'GMBA_Inventory_L8',      'GMBA Inventory L8');
+</script>
+
 </body>
 </html>
