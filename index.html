@@ -69,10 +69,13 @@
   L.control.scale({ metric: true, imperial: false }).addTo(map);
 
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution:
-    '&copy; OpenStreetMap contributors | ' +
-    'LWD Subregions Euregio © CC0 1.0 (Landeswarnzentrale Tirol, Amt der Tiroler Landesregierung)'
-}).addTo(map);
+    attribution:
+      '&copy; OpenStreetMap contributors | ' +
+      'LWD Euregio regions (CC0 1.0) | ' +
+      'GMBA Mountain Inventory v2 (© 2022 GMBA-EarthEnv, ' +
+      '<a href="https://doi.org/10.48601/EARTHENV-T9K2-1407" target="_blank">CC BY 4.0</a>)'
+  }).addTo(map);
+
 
 
   const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
