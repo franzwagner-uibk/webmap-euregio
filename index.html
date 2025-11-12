@@ -156,7 +156,7 @@
             stroke-width="2"
           />
         </svg>
-        <span>LWD Subregions Euregio</span>
+        <span>Avalanche Report Subregions</span>
       </div>
       <div class="legend-row">
         <svg
@@ -169,11 +169,12 @@
             y1="5"
             x2="36"
             y2="5"
-            stroke="#000000"
+            stroke="#555555"
             stroke-width="2"
+            stroke-dasharray="6,3"
           />
         </svg>
-        <span>GMBA Inventory L8</span>
+        <span>Province Boundaries</span>
       </div>
     </div>
     <div class="footer">
@@ -206,6 +207,16 @@
             '<a href="https://doi.org/10.48601/EARTHENV-T9K2-1407" target="_blank">CC BY 4.0</a>)',
         }
       ).addTo(map);
+      // Override attribution to remove GMBA note
+      try {
+        osm.options.attribution =
+          "&copy; OpenStreetMap contributors | Local data: Euregio/Province boundaries & Avalanche subregions";
+        if (map.attributionControl && map.attributionControl._update) {
+          map.attributionControl._update();
+        }
+      } catch (e) {
+        console.warn("Attribution override failed:", e);
+      }
 
       const esriSat = L.tileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -218,13 +229,18 @@
 
       // Styles
       const layerStyles = {
-        lwd_subregions_euregio: {
+        avalanche_subregions: {
           color: "#1f78b4",
           weight: 2,
           fillOpacity: 0.15,
         },
-        GMBA_Inventory_L8: { color: "#000000", weight: 2, fillOpacity: 0.15 },
-        euregio: { color: "#8B0000", weight: 4, fillOpacity: 0 },
+        province_boundary: {
+          color: "#555555",
+          weight: 2,
+          fillOpacity: 0,
+          dashArray: "6,3",
+        },
+        euregio_boundary: { color: "#8B0000", weight: 4, fillOpacity: 0 },
       };
 
       const overlays = {};
@@ -273,7 +289,8 @@
             );
 
             const gj = L.geoJSON(geo, {
-              pane: key === "euregio" ? "euregioPane" : undefined, // put Euregio in its own high-z pane
+              pane:
+                key === "euregio_boundary" ? "euregioPane" : undefined, // put Euregio in its own high-z pane
               style: () => layerStyles[key] || {},
               pointToLayer: (feature, latlng) =>
                 L.circleMarker(latlng, {
@@ -295,8 +312,8 @@
               },
             }).addTo(map);
 
-            // ensure Euregio is in front even if others finish loading later
-            if (key === "euregio") {
+            // ensure Euregio boundary is in front even if others finish loading later
+            if (key === "euregio_boundary") {
               gj.bringToFront();
             }
 
@@ -348,20 +365,24 @@
 
       // Load your layers (paths are case-sensitive!)
       addGeoJSON(
-        "data/lwd_subregions_euregio.geojson",
-        "lwd_subregions_euregio",
-        "LWD Subregions Euregio"
+        "data/subregions_avalanche_report_4326.geojson",
+        "avalanche_subregions",
+        "Avalanche Report Subregions"
       );
       addGeoJSON(
-        "data/GMBA_Inventory_L8.geojson",
-        "GMBA_Inventory_L8",
-        "GMBA Inventory L8"
+        "data/province_boundary_4326.geojson",
+        "province_boundary",
+        "Province Boundaries"
       );
-      addGeoJSON("data/euregio.geojson", "euregio", "Euregio Boundary");
+      addGeoJSON(
+        "data/euregio_boundary_4326.geojson",
+        "euregio_boundary",
+        "Euregio Boundary"
+      );
 
       map.on("overlayadd", function (e) {
-        if (e.name === "Euregio Boundary" && overlays.euregio) {
-          overlays.euregio.bringToFront();
+        if (e.name === "Euregio Boundary" && overlays.euregio_boundary) {
+          overlays.euregio_boundary.bringToFront();
         }
       });
     </script>
