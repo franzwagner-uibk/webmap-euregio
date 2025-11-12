@@ -105,13 +105,7 @@
           <td style="text-align: right">1 501.6</td>
           <td style="text-align: right">336.8</td>
         </tr>
-        <tr>
-          <td>GMBA Inventory L8</td>
-          <td style="text-align: right">35</td>
-          <td style="text-align: right">303.1</td>
-          <td style="text-align: right">4 356.9</td>
-          <td style="text-align: right">1 342.9</td>
-        </tr>
+        
       </tbody>
     </table>
   </div>
@@ -381,9 +375,9 @@
       );
 
       map.on("overlayadd", function (e) {
-        if (e.name === "Euregio Boundary" && overlays.euregio_boundary) {
-          overlays.euregio_boundary.bringToFront();
-        }
+        // Always keep boundaries on top in this order
+        if (overlays.euregio_boundary) overlays.euregio_boundary.bringToFront();
+        if (overlays.province_boundary) overlays.province_boundary.bringToFront();
       });
     </script>
   </body>
