@@ -6,6 +6,7 @@
     <title>[under construction] Frame3S - Regionalization</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/proj4@2.11.0/dist/proj4.js"></script>
     <style>
       html,
       body,
@@ -171,6 +172,42 @@
         </svg>
         <span>Province Boundaries</span>
       </div>
+      <div class="legend-row">
+        <svg
+          class="legend-swatch"
+          viewBox="0 0 36 10"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <rect width="36" height="10" fill="#e6550d" opacity="0.2" />
+          <line
+            x1="0"
+            y1="5"
+            x2="36"
+            y2="5"
+            stroke="#e6550d"
+            stroke-width="3"
+          />
+        </svg>
+        <span>Rofental Test Sites</span>
+      </div>
+      <div class="legend-row">
+        <svg
+          class="legend-swatch"
+          viewBox="0 0 36 10"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <rect width="36" height="10" fill="#1a9850" opacity="0.15" />
+          <line
+            x1="0"
+            y1="5"
+            x2="36"
+            y2="5"
+            stroke="#1a9850"
+            stroke-width="2"
+          />
+        </svg>
+        <span>Adige Basin</span>
+      </div>
     </div>
     <div class="footer">
       © 2025 Franz Wagner – University of Innsbruck –
@@ -222,12 +259,38 @@
 
       const baseMaps = { OpenStreetMap: osm, "Esri World Imagery": esriSat };
 
+      // Projections needed for local datasets (UTM Zone 32)
+      if (window.proj4) {
+        if (!proj4.defs("EPSG:25832")) {
+          proj4.defs(
+            "EPSG:25832",
+            "+proj=utm +zone=32 +datum=ETRS89 +units=m +no_defs +type=crs"
+          );
+        }
+        if (!proj4.defs("EPSG:32632")) {
+          proj4.defs(
+            "EPSG:32632",
+            "+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs +type=crs"
+          );
+        }
+      }
+
       // Styles
       const layerStyles = {
         avalanche_subregions: {
           color: "#1f78b4",
           weight: 2,
           fillOpacity: 0.15,
+        },
+        testsites_rofental: {
+          color: "#e6550d",
+          weight: 2,
+          fillOpacity: 0.12,
+        },
+        adige_basin: {
+          color: "#1a9850",
+          weight: 2,
+          fillOpacity: 0.1,
         },
         province_boundary: {
           color: "#555555",
@@ -265,8 +328,38 @@
         }
       }
 
-      // Safer loader with diagnostics and cache-busting
-      function addGeoJSON(url, key, displayName) {
+      // Safer loader with diagnostics, cache-busting, and optional reprojection
+      function transformCoords(coords, transformer) {
+        if (!Array.isArray(coords)) return coords;
+        if (typeof coords[0] === "number") {
+          const [x, y] = coords;
+          const [lon, lat] = transformer([x, y]);
+          return [lon, lat];
+        }
+        return coords.map((c) => transformCoords(c, transformer));
+      }
+
+      function reprojectGeoJSON(geo, sourceCrs) {
+        if (!window.proj4) {
+          console.warn(
+            `proj4 not available; skipping reprojection from ${sourceCrs}.`
+          );
+          return geo;
+        }
+        const clone = JSON.parse(JSON.stringify(geo));
+        const forward = proj4(sourceCrs, "EPSG:4326").forward;
+        (clone.features || []).forEach((f) => {
+          if (f?.geometry?.coordinates) {
+            f.geometry.coordinates = transformCoords(
+              f.geometry.coordinates,
+              forward
+            );
+          }
+        });
+        return clone;
+      }
+
+      function addGeoJSON(url, key, displayName, options = {}) {
         const busted =
           url + (url.includes("?") ? "&" : "?") + "v=" + Date.now();
 
@@ -276,14 +369,19 @@
             return r.json();
           })
           .then((geo) => {
-            const features = Array.isArray(geo.features)
-              ? geo.features.length
+            const processedGeo =
+              options.sourceCrs && geo
+                ? reprojectGeoJSON(geo, options.sourceCrs)
+                : geo;
+
+            const features = Array.isArray(processedGeo.features)
+              ? processedGeo.features.length
               : 0;
             console.log(
               `[${displayName}] Loaded ${features} features from ${url}`
             );
 
-            const gj = L.geoJSON(geo, {
+            const gj = L.geoJSON(processedGeo, {
               pane:
                 key === "euregio_boundary" ? "euregioPane" : undefined, // put Euregio in its own high-z pane
               style: () => layerStyles[key] || {},
@@ -365,6 +463,12 @@
         "Avalanche Report Subregions"
       );
       addGeoJSON(
+        "data/testsites_rofental_extended.geojson",
+        "testsites_rofental",
+        "Rofental Test Sites",
+        { sourceCrs: "EPSG:25832" }
+      );
+      addGeoJSON(
         "data/province_boundary_4326.geojson",
         "province_boundary",
         "Province Boundaries"
@@ -373,6 +477,12 @@
         "data/euregio_boundary_4326.geojson",
         "euregio_boundary",
         "Euregio Boundary"
+      );
+      addGeoJSON(
+        "data/Adige_basin.geojson",
+        "adige_basin",
+        "Adige Basin",
+        { sourceCrs: "EPSG:32632" }
       );
 
       map.on("overlayadd", function (e) {
