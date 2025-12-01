@@ -228,6 +228,9 @@
       // --- Keep 'Euregio' above other overlays ---
       map.createPane("euregioPane");
       map.getPane("euregioPane").style.zIndex = 650; // higher than default vector overlays
+      // --- Test sites just below Euregio but above all other overlays ---
+      map.createPane("testsitesPane");
+      map.getPane("testsitesPane").style.zIndex = 640;
 
       const osm = L.tileLayer(
         "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -383,7 +386,11 @@
 
             const gj = L.geoJSON(processedGeo, {
               pane:
-                key === "euregio_boundary" ? "euregioPane" : undefined, // put Euregio in its own high-z pane
+                key === "euregio_boundary"
+                  ? "euregioPane"
+                  : key === "testsites_rofental"
+                  ? "testsitesPane"
+                  : undefined, // ensure priority ordering
               style: () => layerStyles[key] || {},
               pointToLayer: (feature, latlng) =>
                 L.circleMarker(latlng, {
@@ -407,6 +414,8 @@
 
             // ensure Euregio boundary is in front even if others finish loading later
             if (key === "euregio_boundary") {
+              gj.bringToFront();
+            } else if (key === "testsites_rofental") {
               gj.bringToFront();
             }
 
@@ -486,8 +495,9 @@
       );
 
       map.on("overlayadd", function (e) {
-        // Always keep boundaries on top in this order
+        // Always keep draw order: Euregio boundary (top), then test sites, then others
         if (overlays.euregio_boundary) overlays.euregio_boundary.bringToFront();
+        if (overlays.testsites_rofental) overlays.testsites_rofental.bringToFront();
         if (overlays.province_boundary) overlays.province_boundary.bringToFront();
       });
     </script>
